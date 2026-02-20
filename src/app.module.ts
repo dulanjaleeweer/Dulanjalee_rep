@@ -7,6 +7,7 @@ import { loggerFactory } from './common/logger/logger.config';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { RedisModule } from './redis/redis.module';
 import { HealthModule } from './health/health.module';
+import { RateLimitModule } from './rate-limit/rate-limit.module';
 
 @Module({
   imports: [
@@ -26,6 +27,9 @@ import { HealthModule } from './health/health.module';
 
     // Redis provider
     RedisModule,
+
+    // Rate limiting (auto-registers global guard)
+    RateLimitModule,
 
     // Health endpoints
     HealthModule,
