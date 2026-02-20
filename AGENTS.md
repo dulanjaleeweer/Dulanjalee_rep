@@ -20,7 +20,7 @@ src/
 ├── common/           # Shared utilities (logger, middleware)
 ├── redis/            # Redis client provider and health indicator
 ├── health/           # Health/readiness endpoints
-└── rate-limit/       # (To be implemented in Step 2)
+└── rate-limit/       # Rate limiting guard, service, and decorators
 ```
 
 ### Key Modules
@@ -48,6 +48,28 @@ src/
 - `GET /api/v1/health` - Liveness probe (memory, disk)
 - `GET /api/v1/health/ready` - Readiness probe (includes Redis)
 - `GET /api/v1/health/live` - Alternative liveness endpoint
+
+#### Rate Limit (`src/rate-limit/`)
+- **RateLimitModule**: Global module with auto-registered guard
+- **RateLimitService**: Core service with Lua script atomic operations
+- **RateLimitGuard**: Route guard supporting multiple key strategies
+- **@RateLimit() decorator**: Per-route rate limit configuration
+- **IP Utils**: X-Forwarded-For support, trusted proxies, IPv4/IPv6 normalization
+- Key strategies: tenant, user, IP, emailHash (SHA-256), custom
+
+Usage:
+```typescript
+@Controller('auth')
+export class AuthController {
+  @Post('login')
+  @RateLimit('login')
+  async login(@Body() dto: LoginDto) { ... }
+
+  @Get('profile')
+  @RateLimit({ type: 'sensitive', limit: 300, windowSeconds: 60 })
+  async getProfile(@Req() req) { ... }
+}
+```
 
 ## Environment Configuration
 
@@ -120,7 +142,7 @@ npm run test
 
 ## Story #66: Rate Limiting Implementation
 
-Current Status: **Step 1 Complete** - Foundation bootstrapped
+Current Status: **Step 2 Complete** - Rate limiting module implemented
 
 ### Implemented (Step 1)
 - [x] NestJS scaffold with TypeScript
@@ -130,12 +152,15 @@ Current Status: **Step 1 Complete** - Foundation bootstrapped
 - [x] Health endpoints with Redis connectivity check
 - [x] Unit tests for config, Redis, and health components
 
-### Pending (Step 2)
-- [ ] Rate limiting guard/interceptor with decorator
-- [ ] Fixed-window counter implementation with Lua script
-- [ ] Multi-key strategies (IP, email hash, user, tenant)
-- [ ] 429 response with Retry-After header
-- [ ] Per-route configuration overrides
+### Implemented (Step 2)
+- [x] Rate limiting guard/interceptor with decorator
+- [x] Fixed-window counter implementation with Lua script (atomic INCR+EXPIRE)
+- [x] Multi-key strategies (IP, email hash SHA-256, user, tenant)
+- [x] 429 response with Retry-After header and standard error body
+- [x] Per-route configuration overrides via @RateLimit() options
+- [x] IP extraction with X-Forwarded-For and trusted proxy support
+- [x] IPv4/IPv6 normalization and CIDR matching
+- [x] Unit tests for rate limit service, guard, and utilities (88 tests total)
 
 ### Pending (Step 3)
 - [ ] Fail-open vs fail-safe modes
