@@ -156,7 +156,7 @@ npm run test
 
 ## Story #66: Rate Limiting Implementation
 
-Current Status: **Step 2 Complete** - Rate limiting module implemented
+Current Status: **Step 3 Complete** - Failure modes and observability implemented
 
 ### Implemented (Step 1)
 - [x] NestJS scaffold with TypeScript
@@ -184,11 +184,6 @@ Current Status: **Step 2 Complete** - Rate limiting module implemented
 - [x] Auth failure tracking with configurable threshold
 - [x] CloudWatch-compatible metrics with route labels
 - [x] Unit tests for security audit and metrics services (125 tests total)
-
-### Pending (Step 3)
-- [ ] Fail-open vs fail-safe modes
-- [ ] Security event emission (SECURITY_RATE_LIMIT_BLOCKED)
-- [ ] Metrics counters for CloudWatch
 
 ### Pending (Step 4)
 - [ ] Apply rate limits to auth endpoints (login, refresh, etc.)
