@@ -163,7 +163,7 @@ npm run test
 
 ## Story #66: Rate Limiting Implementation
 
-Current Status: **Step 4 Complete** - Endpoint coverage with rate limiting implemented
+Current Status: **Step 5 Complete** - Abuse/anomaly detection integrated into auth flows
 
 ### Implemented (Step 1)
 - [x] NestJS scaffold with TypeScript
@@ -210,10 +210,21 @@ Current Status: **Step 4 Complete** - Endpoint coverage with rate limiting imple
 - [x] Public endpoints with baseline rate limiting
   - GET /public/status, GET /public/info, GET /public/content (rate limit: public - IP)
 
-### Pending (Step 5)
-- [ ] Abuse detection hooks (integrate with auth flows)
-- [ ] Complete auth failure threshold integration
-- [ ] End-to-end integration tests
+### Implemented (Step 5)
+- [x] Abuse detection hooks integrated with auth flows
+- [x] AuthController records failed login attempts via AuthFailureTrackerService
+- [x] Failed attempts tracked by IP and email hash (SHA-256)
+- [x] Successful logins reset failure counts
+- [x] SECURITY_AUTH_FAILED_THRESHOLD_REACHED emitted when threshold exceeded
+- [x] All PII hashed before logging/tracking
+- [x] Unit tests for AuthController (8 tests, 133 total)
+
+### Security Audit Events
+- `SECURITY_RATE_LIMIT_BLOCKED` - Rate limit exceeded (emitted in RateLimitGuard)
+- `SECURITY_AUTH_FAILED_THRESHOLD_REACHED` - Auth failures exceed threshold
+- `SECURITY_REDIS_UNAVAILABLE` - Redis unavailable for auth endpoints
+
+All events include: route, tenantId, userId, ipHash, requestId (no raw PII)
 
 ## CI/CD Notes
 
