@@ -20,7 +20,9 @@ src/
 ├── common/           # Shared utilities (logger, middleware)
 ├── redis/            # Redis client provider and health indicator
 ├── health/           # Health/readiness endpoints
-└── rate-limit/       # Rate limiting guard, service, and decorators
+├── rate-limit/       # Rate limiting guard, service, and decorators
+├── security-audit/   # Security event emission for compliance
+└── metrics/          # CloudWatch-compatible metrics counters
 ```
 
 ### Key Modules
@@ -52,10 +54,22 @@ src/
 #### Rate Limit (`src/rate-limit/`)
 - **RateLimitModule**: Global module with auto-registered guard
 - **RateLimitService**: Core service with Lua script atomic operations
-- **RateLimitGuard**: Route guard supporting multiple key strategies
+- **RateLimitGuard**: Route guard with security event emission
+- **AuthFailureTrackerService**: Tracks consecutive auth failures
 - **@RateLimit() decorator**: Per-route rate limit configuration
-- **IP Utils**: X-Forwarded-For support, trusted proxies, IPv4/IPv6 normalization
 - Key strategies: tenant, user, IP, emailHash (SHA-256), custom
+
+#### Security Audit (`src/security-audit/`)
+- **SecurityAuditService**: Structured security event emission
+- Event types: `SECURITY_RATE_LIMIT_BLOCKED`, `SECURITY_AUTH_FAILED_THRESHOLD_REACHED`, `SECURITY_REDIS_UNAVAILABLE`
+- All PII hashed (SHA-256) before logging
+- Events include: route, tenantId, userId, ipHash, keyType, requestId
+
+#### Metrics (`src/metrics/`)
+- **MetricsService**: CloudWatch-compatible counters
+- Counters: `rate_limit_blocked_total`, `auth_failed_total`, `redis_unavailable_total`
+- Histogram support for latency tracking
+- Label support for route, type, endpoint classification
 
 Usage:
 ```typescript
@@ -160,7 +174,16 @@ Current Status: **Step 2 Complete** - Rate limiting module implemented
 - [x] Per-route configuration overrides via @RateLimit() options
 - [x] IP extraction with X-Forwarded-For and trusted proxy support
 - [x] IPv4/IPv6 normalization and CIDR matching
-- [x] Unit tests for rate limit service, guard, and utilities (88 tests total)
+- [x] Unit tests for rate limit service, guard, and utilities
+
+### Implemented (Step 3)
+- [x] Fail-open vs fail-safe behavior based on endpoint category
+- [x] Security audit event emission (SECURITY_RATE_LIMIT_BLOCKED, etc.)
+- [x] Structured logs with redacted identifiers (hashed IPs, no raw emails)
+- [x] Metrics counters: rate_limit_blocked_total, auth_failed_total, redis_unavailable_total
+- [x] Auth failure tracking with configurable threshold
+- [x] CloudWatch-compatible metrics with route labels
+- [x] Unit tests for security audit and metrics services (125 tests total)
 
 ### Pending (Step 3)
 - [ ] Fail-open vs fail-safe modes
