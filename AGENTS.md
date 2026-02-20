@@ -16,13 +16,20 @@ ABC EarlySteps is a mobile and web-based education support application for autis
 ### Module Structure
 ```
 src/
-├── config/           # Environment configuration with validation
+├── auth/             # Authentication endpoints (login, refresh, MFA)
+├── children/         # Child profile endpoints (sensitive)
 ├── common/           # Shared utilities (logger, middleware)
-├── redis/            # Redis client provider and health indicator
+├── config/           # Environment configuration with validation
+├── consent/          # Consent management endpoints (sensitive)
+├── email-verification/ # Email verification endpoints
 ├── health/           # Health/readiness endpoints
+├── metrics/          # CloudWatch-compatible metrics counters
+├── password/         # Password reset endpoints
+├── profile/          # User profile endpoints (sensitive)
+├── public/           # Public endpoints with baseline rate limiting
 ├── rate-limit/       # Rate limiting guard, service, and decorators
-├── security-audit/   # Security event emission for compliance
-└── metrics/          # CloudWatch-compatible metrics counters
+├── redis/            # Redis client provider and health indicator
+└── security-audit/   # Security event emission for compliance
 ```
 
 ### Key Modules
@@ -156,7 +163,7 @@ npm run test
 
 ## Story #66: Rate Limiting Implementation
 
-Current Status: **Step 3 Complete** - Failure modes and observability implemented
+Current Status: **Step 4 Complete** - Endpoint coverage with rate limiting implemented
 
 ### Implemented (Step 1)
 - [x] NestJS scaffold with TypeScript
@@ -185,15 +192,28 @@ Current Status: **Step 3 Complete** - Failure modes and observability implemente
 - [x] CloudWatch-compatible metrics with route labels
 - [x] Unit tests for security audit and metrics services (125 tests total)
 
-### Pending (Step 4)
-- [ ] Apply rate limits to auth endpoints (login, refresh, etc.)
-- [ ] Apply rate limits to sensitive endpoints (profile, children, consent)
-- [ ] Public API baseline limits
+### Implemented (Step 4)
+- [x] Auth endpoints with rate limiting (login, refresh, MFA placeholder)
+  - POST /auth/login (rate limit: login - IP + emailHash)
+  - POST /auth/refresh (rate limit: refreshToken - User ID)
+  - POST /auth/mfa/verify (rate limit: login - IP + emailHash)
+- [x] Password reset endpoints with rate limiting
+  - POST /password/reset-request (rate limit: passwordReset - IP + emailHash)
+  - POST /password/reset-confirm (rate limit: passwordResetConfirm - IP)
+- [x] Email verification endpoints with rate limiting
+  - POST /email-verification/verify (rate limit: emailVerifyToken - IP)
+  - POST /email-verification/resend (rate limit: emailVerifyResend - IP + emailHash)
+- [x] Sensitive endpoints with rate limiting (user-aware + tenant-aware)
+  - Profile: GET /profile, PUT /profile (rate limit: sensitive - User ID)
+  - Children: GET /children/:id, PUT /children/:id (rate limit: sensitive - User ID)
+  - Consent: POST /consent/grant, POST /consent/revoke (rate limit: sensitive - User ID)
+- [x] Public endpoints with baseline rate limiting
+  - GET /public/status, GET /public/info, GET /public/content (rate limit: public - IP)
 
 ### Pending (Step 5)
-- [ ] Abuse detection hooks
-- [ ] Auth failure threshold events
-- [ ] Audit event integration
+- [ ] Abuse detection hooks (integrate with auth flows)
+- [ ] Complete auth failure threshold integration
+- [ ] End-to-end integration tests
 
 ## CI/CD Notes
 
