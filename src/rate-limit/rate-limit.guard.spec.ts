@@ -4,6 +4,8 @@ import { ExecutionContext } from '@nestjs/common';
 import { RateLimitGuard } from './rate-limit.guard';
 import { RateLimitService } from './rate-limit.service';
 import { AppConfigService } from '../config/config.service';
+import { SecurityAuditService } from '../security-audit/security-audit.service';
+import { MetricsService } from '../metrics/metrics.service';
 import { RateLimitOptions } from './rate-limit.interfaces';
 import {
   RateLimitExceededException,
@@ -25,6 +27,17 @@ describe('RateLimitGuard', () => {
     getConfigForType: jest.fn().mockReturnValue({ limit: 10, windowSeconds: 60 }),
     getPasswordResetEmailConfig: jest.fn().mockReturnValue({ limit: 5, windowSeconds: 900 }),
     getEmailVerifyResendEmailConfig: jest.fn().mockReturnValue({ limit: 3, windowSeconds: 900 }),
+  };
+
+  const mockSecurityAuditService = {
+    logRateLimitBlocked: jest.fn(),
+    logRedisUnavailable: jest.fn(),
+    hashIp: jest.fn().mockReturnValue('hashed-ip'),
+  };
+
+  const mockMetricsService = {
+    incrementRateLimitBlocked: jest.fn(),
+    incrementRedisUnavailable: jest.fn(),
   };
 
   // Helper to create mock execution context
@@ -67,6 +80,14 @@ describe('RateLimitGuard', () => {
         {
           provide: RateLimitService,
           useValue: mockRateLimitService,
+        },
+        {
+          provide: SecurityAuditService,
+          useValue: mockSecurityAuditService,
+        },
+        {
+          provide: MetricsService,
+          useValue: mockMetricsService,
         },
         AppConfigService,
       ],
@@ -137,6 +158,9 @@ describe('RateLimitGuard', () => {
       const context = createMockContext();
 
       await expect(guard.canActivate(context)).rejects.toThrow(RateLimitExceededException);
+
+      expect(mockSecurityAuditService.logRateLimitBlocked).toHaveBeenCalled();
+      expect(mockMetricsService.incrementRateLimitBlocked).toHaveBeenCalled();
     });
 
     it('should throw RedisUnavailableException for auth endpoint when Redis is down', async () => {
@@ -146,6 +170,9 @@ describe('RateLimitGuard', () => {
       const context = createMockContext();
 
       await expect(guard.canActivate(context)).rejects.toThrow(RedisUnavailableException);
+
+      expect(mockSecurityAuditService.logRedisUnavailable).toHaveBeenCalled();
+      expect(mockMetricsService.incrementRedisUnavailable).toHaveBeenCalled();
     });
 
     it('should allow request for non-auth endpoint when Redis is down', async () => {
@@ -156,6 +183,8 @@ describe('RateLimitGuard', () => {
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
+      expect(mockSecurityAuditService.logRedisUnavailable).toHaveBeenCalled();
+      expect(mockMetricsService.incrementRedisUnavailable).toHaveBeenCalled();
     });
 
     it('should check email-based limit for login with email', async () => {
@@ -248,6 +277,50 @@ describe('RateLimitGuard', () => {
 
       const mockResponse = context.switchToHttp().getResponse();
       expect(mockResponse.setHeader).toHaveBeenCalledWith('Retry-After', 45);
+    });
+
+    it('should emit security event on rate limit block', async () => {
+      mockReflector.getAllAndOverride.mockReturnValue({ type: 'login' });
+      mockRateLimitService.isRedisAvailable.mockReturnValue(true);
+      mockRateLimitService.checkLimit.mockResolvedValue({
+        allowed: false,
+        remaining: 0,
+        limit: 10,
+        retryAfter: 45,
+        current: 11,
+        key: 'rl:auth:login:ip:192.168.1.1',
+      });
+
+      const context = createMockContext();
+
+      await expect(guard.canActivate(context)).rejects.toThrow();
+
+      expect(mockSecurityAuditService.logRateLimitBlocked).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rateLimitType: 'login',
+          retryAfter: 45,
+          currentCount: 11,
+        }),
+      );
+    });
+
+    it('should emit metrics on rate limit block', async () => {
+      mockReflector.getAllAndOverride.mockReturnValue({ type: 'login' });
+      mockRateLimitService.isRedisAvailable.mockReturnValue(true);
+      mockRateLimitService.checkLimit.mockResolvedValue({
+        allowed: false,
+        remaining: 0,
+        limit: 10,
+        retryAfter: 45,
+        current: 11,
+        key: 'rl:auth:login:ip:192.168.1.1',
+      });
+
+      const context = createMockContext();
+
+      await expect(guard.canActivate(context)).rejects.toThrow();
+
+      expect(mockMetricsService.incrementRateLimitBlocked).toHaveBeenCalled();
     });
   });
 });

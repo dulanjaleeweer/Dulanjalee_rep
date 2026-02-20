@@ -6,4 +6,5 @@ export * from './rate-limit.decorator';
 export * from './rate-limit.interfaces';
 export * from './rate-limit.constants';
 export * from './rate-limit.utils';
+export * from './auth-failure-tracker.service';
 export * from './exceptions';

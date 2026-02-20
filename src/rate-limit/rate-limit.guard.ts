@@ -3,6 +3,8 @@ import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { RateLimitService } from './rate-limit.service';
 import { AppConfigService } from '../config/config.service';
+import { SecurityAuditService } from '../security-audit/security-audit.service';
+import { MetricsService } from '../metrics/metrics.service';
 import { RateLimitOptions, RateLimitType, RateLimitKeyComponents } from './rate-limit.interfaces';
 import { RATE_LIMIT_METADATA_KEY } from './rate-limit.constants';
 import {
@@ -21,6 +23,7 @@ import {
 /**
  * Guard that enforces rate limits on routes decorated with @RateLimit()
  * Supports multiple key strategies and handles Redis failures gracefully
+ * Emits security audit events and metrics for observability
  */
 @Injectable()
 export class RateLimitGuard implements CanActivate {
@@ -30,6 +33,8 @@ export class RateLimitGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly rateLimitService: RateLimitService,
     private readonly configService: AppConfigService,
+    private readonly securityAuditService: SecurityAuditService,
+    private readonly metricsService: MetricsService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -57,12 +62,54 @@ export class RateLimitGuard implements CanActivate {
           requestId,
           type: options.type,
         });
+
+        // Emit security audit event
+        this.securityAuditService.logRedisUnavailable({
+          route: request.route?.path || request.path,
+          tenantId: extractTenantId(request),
+          userId: extractUserId(request),
+          ipHash: this.securityAuditService.hashIp(
+            extractClientIp(request, {
+              trustedProxies: this.configService.trustedProxyIps,
+              trustProxy: this.configService.trustedProxyIps.length > 0,
+            }),
+          ),
+          keyType: 'ip',
+          requestId,
+          isAuthEndpoint: true,
+          errorMessage: 'Redis not available for auth endpoint',
+        });
+
+        // Increment metrics
+        this.metricsService.incrementRedisUnavailable('auth');
+
         throw new RedisUnavailableException();
       } else {
         this.logger.warn(`Redis unavailable for non-auth endpoint, failing open`, {
           requestId,
           type: options.type,
         });
+
+        // Emit security audit event (informational)
+        this.securityAuditService.logRedisUnavailable({
+          route: request.route?.path || request.path,
+          tenantId: extractTenantId(request),
+          userId: extractUserId(request),
+          ipHash: this.securityAuditService.hashIp(
+            extractClientIp(request, {
+              trustedProxies: this.configService.trustedProxyIps,
+              trustProxy: this.configService.trustedProxyIps.length > 0,
+            }),
+          ),
+          keyType: 'ip',
+          requestId,
+          isAuthEndpoint: false,
+          errorMessage: 'Redis not available for non-auth endpoint',
+        });
+
+        // Increment metrics
+        this.metricsService.incrementRedisUnavailable('non-auth');
+
         return true;
       }
     }
@@ -86,8 +133,10 @@ export class RateLimitGuard implements CanActivate {
     // Add rate limit headers to response
     this.addRateLimitHeaders(context, primaryResult);
 
-    // If primary limit exceeded, reject
+    // If primary limit exceeded, reject and emit events
     if (!primaryResult.allowed) {
+      const route = request.route?.path || request.path;
+
       this.logger.warn(
         `Rate limit exceeded: type=${options.type}, key=${primaryKey}, count=${primaryResult.current}/${config.limit}`,
         {
@@ -100,12 +149,39 @@ export class RateLimitGuard implements CanActivate {
         },
       );
 
+      // Emit security audit event (PII-safe)
+      this.securityAuditService.logRateLimitBlocked({
+        route,
+        tenantId: keyComponents.tenantId,
+        userId: keyComponents.userId,
+        ipHash: this.securityAuditService.hashIp(keyComponents.ip),
+        keyType: this.getKeyTypeDescription(keyComponents) as
+          | 'ip'
+          | 'user'
+          | 'email-hash'
+          | 'token',
+        requestId,
+        rateLimitType: options.type,
+        limit: config.limit,
+        windowSeconds: config.windowSeconds,
+        retryAfter: primaryResult.retryAfter,
+        currentCount: primaryResult.current,
+      });
+
+      // Increment metrics
+      this.metricsService.incrementRateLimitBlocked(route, options.type);
+
       throw new RateLimitExceededException(primaryResult.retryAfter);
     }
 
     // For login endpoints, also check email-based limit if email provided
     if (options.type === 'login' && keyComponents.emailHash) {
-      const emailResult = await this.checkEmailBasedLimit(request, keyComponents, requestId);
+      const emailResult = await this.checkEmailBasedLimit(
+        request,
+        keyComponents,
+        requestId,
+        context,
+      );
 
       if (!emailResult.allowed) {
         throw new RateLimitExceededException(emailResult.retryAfter);
@@ -118,6 +194,7 @@ export class RateLimitGuard implements CanActivate {
         request,
         keyComponents,
         requestId,
+        context,
       );
 
       if (!emailResult.allowed) {
@@ -127,7 +204,12 @@ export class RateLimitGuard implements CanActivate {
 
     // For email verification resend, also check email-based limit
     if (options.type === 'emailVerifyResend' && keyComponents.emailHash) {
-      const emailResult = await this.checkEmailVerifyResendLimit(request, keyComponents, requestId);
+      const emailResult = await this.checkEmailVerifyResendLimit(
+        request,
+        keyComponents,
+        requestId,
+        context,
+      );
 
       if (!emailResult.allowed) {
         throw new RateLimitExceededException(emailResult.retryAfter);
@@ -206,6 +288,7 @@ export class RateLimitGuard implements CanActivate {
     request: Request,
     components: RateLimitKeyComponents,
     requestId: string,
+    _context: ExecutionContext,
   ) {
     const emailKey = buildRateLimitKey({
       ...components,
@@ -221,6 +304,8 @@ export class RateLimitGuard implements CanActivate {
     );
 
     if (!result.allowed) {
+      const route = request.route?.path || request.path;
+
       this.logger.warn(
         `Login email rate limit exceeded: key=${emailKey}, count=${result.current}/${emailConfig.limit}`,
         {
@@ -230,6 +315,24 @@ export class RateLimitGuard implements CanActivate {
           retryAfter: result.retryAfter,
         },
       );
+
+      // Emit security audit event
+      this.securityAuditService.logRateLimitBlocked({
+        route,
+        tenantId: components.tenantId,
+        userId: components.userId,
+        ipHash: this.securityAuditService.hashIp(components.ip),
+        keyType: 'email-hash',
+        requestId,
+        rateLimitType: 'loginEmail',
+        limit: emailConfig.limit,
+        windowSeconds: emailConfig.windowSeconds,
+        retryAfter: result.retryAfter,
+        currentCount: result.current,
+      });
+
+      // Increment metrics
+      this.metricsService.incrementRateLimitBlocked(route, 'loginEmail');
     }
 
     return result;
@@ -242,6 +345,7 @@ export class RateLimitGuard implements CanActivate {
     request: Request,
     components: RateLimitKeyComponents,
     requestId: string,
+    _context: ExecutionContext,
   ) {
     const emailKey = buildRateLimitKey({
       ...components,
@@ -258,6 +362,8 @@ export class RateLimitGuard implements CanActivate {
     );
 
     if (!result.allowed) {
+      const route = request.route?.path || request.path;
+
       this.logger.warn(
         `Password reset email rate limit exceeded: key=${emailKey}, count=${result.current}/${emailConfig.limit}`,
         {
@@ -267,6 +373,24 @@ export class RateLimitGuard implements CanActivate {
           retryAfter: result.retryAfter,
         },
       );
+
+      // Emit security audit event
+      this.securityAuditService.logRateLimitBlocked({
+        route,
+        tenantId: components.tenantId,
+        userId: components.userId,
+        ipHash: this.securityAuditService.hashIp(components.ip),
+        keyType: 'email-hash',
+        requestId,
+        rateLimitType: 'passwordResetEmail',
+        limit: emailConfig.limit,
+        windowSeconds: emailConfig.windowSeconds,
+        retryAfter: result.retryAfter,
+        currentCount: result.current,
+      });
+
+      // Increment metrics
+      this.metricsService.incrementRateLimitBlocked(route, 'passwordResetEmail');
     }
 
     return result;
@@ -279,6 +403,7 @@ export class RateLimitGuard implements CanActivate {
     request: Request,
     components: RateLimitKeyComponents,
     requestId: string,
+    _context: ExecutionContext,
   ) {
     const emailKey = buildRateLimitKey({
       ...components,
@@ -295,6 +420,8 @@ export class RateLimitGuard implements CanActivate {
     );
 
     if (!result.allowed) {
+      const route = request.route?.path || request.path;
+
       this.logger.warn(
         `Email verify resend rate limit exceeded: key=${emailKey}, count=${result.current}/${emailConfig.limit}`,
         {
@@ -304,6 +431,24 @@ export class RateLimitGuard implements CanActivate {
           retryAfter: result.retryAfter,
         },
       );
+
+      // Emit security audit event
+      this.securityAuditService.logRateLimitBlocked({
+        route,
+        tenantId: components.tenantId,
+        userId: components.userId,
+        ipHash: this.securityAuditService.hashIp(components.ip),
+        keyType: 'email-hash',
+        requestId,
+        rateLimitType: 'emailVerifyResendEmail',
+        limit: emailConfig.limit,
+        windowSeconds: emailConfig.windowSeconds,
+        retryAfter: result.retryAfter,
+        currentCount: result.current,
+      });
+
+      // Increment metrics
+      this.metricsService.incrementRateLimitBlocked(route, 'emailVerifyResendEmail');
     }
 
     return result;

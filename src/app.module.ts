@@ -6,8 +6,10 @@ import { AppConfigService } from './config/config.service';
 import { loggerFactory } from './common/logger/logger.config';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { RedisModule } from './redis/redis.module';
-import { HealthModule } from './health/health.module';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
+import { HealthModule } from './health/health.module';
+import { SecurityAuditModule } from './security-audit/security-audit.module';
+import { MetricsModule } from './metrics/metrics.module';
 
 @Module({
   imports: [
@@ -27,6 +29,12 @@ import { RateLimitModule } from './rate-limit/rate-limit.module';
 
     // Redis provider
     RedisModule,
+
+    // Security audit (structured security events)
+    SecurityAuditModule,
+
+    // Metrics (CloudWatch-compatible counters)
+    MetricsModule,
 
     // Rate limiting (auto-registers global guard)
     RateLimitModule,
