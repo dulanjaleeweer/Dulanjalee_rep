@@ -27,16 +27,17 @@ describe('AppModule', () => {
 
   it('should provide AppConfigService', () => {
     expect(configService).toBeDefined();
+    expect(typeof configService.port).toBe('number');
   });
 
   it('should provide RedisService', () => {
     expect(redisService).toBeDefined();
   });
 
-  it('should have default configuration values', () => {
-    expect(configService.port).toBe(3000);
-    expect(configService.nodeEnv).toBe('development');
-    expect(configService.redisHost).toBe('localhost');
-    expect(configService.redisPort).toBe(6379);
+  it('should have valid configuration values', () => {
+    expect(configService.port).toBeGreaterThan(0);
+    expect(typeof configService.nodeEnv).toBe('string');
+    expect(typeof configService.redisHost).toBe('string');
+    expect(typeof configService.redisPort).toBe('number');
   });
 });

@@ -1,4 +1,5 @@
 import { Params } from 'nestjs-pino';
+import { v4 as uuidv4 } from 'uuid';
 import { AppConfigService } from '../../config/config.service';
 
 /**
@@ -7,7 +8,7 @@ import { AppConfigService } from '../../config/config.service';
  */
 export function loggerFactory(config: AppConfigService): Params {
   const isDevelopment = config.isDevelopment;
-  
+
   // Base redaction paths for sensitive data
   const redactPaths = [
     'req.headers.authorization',
@@ -25,15 +26,15 @@ export function loggerFactory(config: AppConfigService): Params {
     'response.token',
     'response.accessToken',
     'response.refreshToken',
-    ...config.logRedactFields.map(field => `req.body.${field}`),
-    ...config.logRedactFields.map(field => `response.${field}`),
+    ...config.logRedactFields.map((field) => `req.body.${field}`),
+    ...config.logRedactFields.map((field) => `response.${field}`),
   ];
 
   return {
     pinoHttp: {
       // Log level based on environment
       level: config.logLevel,
-      
+
       // Pretty printing in development, JSON in production
       transport: isDevelopment
         ? {
@@ -47,13 +48,13 @@ export function loggerFactory(config: AppConfigService): Params {
             },
           }
         : undefined,
-      
+
       // Redaction configuration - censor sensitive fields
       redact: {
         paths: redactPaths,
         remove: true, // Completely remove rather than censor with [Redacted]
       },
-      
+
       // Custom serializers for request/response
       serializers: {
         req: (req) => ({
@@ -74,7 +75,7 @@ export function loggerFactory(config: AppConfigService): Params {
           statusCode: res.statusCode,
         }),
       },
-      
+
       // Auto logging configuration
       autoLogging: {
         // Don't log health check endpoints to reduce noise
@@ -83,29 +84,25 @@ export function loggerFactory(config: AppConfigService): Params {
           return url.includes('/health') || url.includes('/ready');
         },
       },
-      
+
       // Custom message format
       customSuccessMessage: (req, res) => {
         return `${req.method} ${req.url} completed with ${res.statusCode}`;
       },
-      
+
       customErrorMessage: (req, res, error) => {
         return `${req.method} ${req.url} failed with ${res.statusCode}: ${error.message}`;
       },
-      
+
       // GenReqId - use existing correlation ID or generate new one
       genReqId: (req, res) => {
-        const existingId = 
-          req.headers['x-request-id'] || 
-          req.headers['x-correlation-id'] ||
-          req.id;
-        
+        const existingId = req.headers['x-request-id'] || req.headers['x-correlation-id'] || req.id;
+
         if (existingId) {
           return existingId as string;
         }
-        
+
         // Generate new UUID if no ID present
-        const { v4: uuidv4 } = require('uuid');
         const id = uuidv4();
         res.setHeader('x-request-id', id);
         return id;

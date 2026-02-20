@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { HealthCheckService, TerminusModule } from '@nestjs/terminus';
+import { HealthCheckService, TerminusModule, HealthCheckResult } from '@nestjs/terminus';
 import { HealthController } from './health.controller';
 import { RedisHealthIndicator } from '../redis/redis-health.indicator';
 import { RedisService } from '../redis/redis.service';
@@ -9,22 +9,23 @@ import { validateEnv } from '../config/env.validation';
 
 describe('HealthController', () => {
   let controller: HealthController;
-  let healthCheckService: HealthCheckService;
 
   const mockHealthCheckService = {
     check: jest.fn(),
   };
 
   const mockRedisHealthIndicator = {
-    isHealthy: jest.fn(),
+    isHealthy: jest.fn().mockResolvedValue({ redis: { status: 'up' } }),
   };
 
   const mockRedisService = {
-    ping: jest.fn(),
-    isReady: jest.fn(),
+    ping: jest.fn().mockResolvedValue('PONG'),
+    isReady: jest.fn().mockReturnValue(true),
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
       imports: [
         TerminusModule,
@@ -52,7 +53,6 @@ describe('HealthController', () => {
     }).compile();
 
     controller = module.get<HealthController>(HealthController);
-    healthCheckService = module.get<HealthCheckService>(HealthCheckService);
   });
 
   afterEach(() => {
@@ -65,7 +65,7 @@ describe('HealthController', () => {
 
   describe('check (liveness)', () => {
     it('should return health status', async () => {
-      const expectedResult = {
+      const expectedResult: HealthCheckResult = {
         status: 'ok',
         info: { memory_heap: { status: 'up' } },
         error: {},
@@ -77,13 +77,13 @@ describe('HealthController', () => {
       const result = await controller.check();
 
       expect(result.status).toBe('ok');
-      expect(healthCheckService.check).toHaveBeenCalled();
+      expect(mockHealthCheckService.check).toHaveBeenCalled();
     });
   });
 
   describe('ready (readiness)', () => {
     it('should return readiness status', async () => {
-      const expectedResult = {
+      const expectedResult: HealthCheckResult = {
         status: 'ok',
         info: { redis: { status: 'up' } },
         error: {},
@@ -95,13 +95,13 @@ describe('HealthController', () => {
       const result = await controller.ready();
 
       expect(result.status).toBe('ok');
-      expect(healthCheckService.check).toHaveBeenCalled();
+      expect(mockHealthCheckService.check).toHaveBeenCalled();
     });
   });
 
   describe('live (alternative liveness)', () => {
     it('should return liveness status', async () => {
-      const expectedResult = {
+      const expectedResult: HealthCheckResult = {
         status: 'ok',
         info: {},
         error: {},

@@ -84,8 +84,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
       // Explicitly connect
       await this.client.connect();
-      
-      this.logger.log(`Redis connected to ${this.configService.redisHost}:${this.configService.redisPort}`);
+
+      this.logger.log(
+        `Redis connected to ${this.configService.redisHost}:${this.configService.redisPort}`,
+      );
     } catch (error) {
       this.logger.error(`Failed to connect to Redis: ${error.message}`, error.stack);
       // Don't throw - allow app to start and handle Redis unavailability gracefully

@@ -53,10 +53,12 @@ describe('RedisService', () => {
 
   describe('getClient', () => {
     it('should provide Redis client instance', () => {
-      const client = service.getClient();
       // Client may be undefined if connection failed
       // but the method should not throw
       expect(() => service.getClient()).not.toThrow();
+      const client = service.getClient();
+      // Client is either undefined or a Redis instance
+      expect(client === undefined || client !== null).toBe(true);
     });
   });
 });

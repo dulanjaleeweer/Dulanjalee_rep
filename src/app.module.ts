@@ -16,25 +16,23 @@ import { HealthModule } from './health/health.module';
       envFilePath: ['.env', '.env.local'],
     }),
     AppConfigModule,
-    
+
     // Logger with request correlation IDs
     LoggerModule.forRootAsync({
       imports: [AppConfigModule],
       inject: [AppConfigService],
       useFactory: loggerFactory,
     }),
-    
+
     // Redis provider
     RedisModule,
-    
+
     // Health endpoints
     HealthModule,
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(CorrelationIdMiddleware)
-      .forRoutes('*');
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
   }
 }

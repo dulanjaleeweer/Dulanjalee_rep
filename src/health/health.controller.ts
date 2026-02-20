@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
-import { 
-  HealthCheck, 
-  HealthCheckService, 
+import {
+  HealthCheck,
+  HealthCheckService,
   HealthCheckResult,
   MemoryHealthIndicator,
   DiskHealthIndicator,
@@ -35,10 +35,11 @@ export class HealthController {
       // Basic memory check - fail if using > 1.5GB heap
       () => this.memory.checkHeap('memory_heap', 1500 * 1024 * 1024),
       // Basic disk check - fail if < 250MB free
-      () => this.disk.checkStorage('disk_storage', {
-        thresholdPercent: 0.9,
-        path: '/',
-      }),
+      () =>
+        this.disk.checkStorage('disk_storage', {
+          thresholdPercent: 0.9,
+          path: '/',
+        }),
     ]);
   }
 

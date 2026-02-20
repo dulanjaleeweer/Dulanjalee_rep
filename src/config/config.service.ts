@@ -33,7 +33,7 @@ export class AppConfigService {
   get corsOrigins(): string | string[] {
     const origins = this.configService.get<string>('CORS_ORIGINS', '*');
     if (origins === '*') return '*';
-    return origins.split(',').map(o => o.trim());
+    return origins.split(',').map((o) => o.trim());
   }
 
   // Redis Configuration
@@ -156,7 +156,7 @@ export class AppConfigService {
   // Security Configuration
   get trustedProxyIps(): string[] {
     const ips = this.configService.get<string>('TRUSTED_PROXY_IPS', '');
-    return ips ? ips.split(',').map(ip => ip.trim()) : [];
+    return ips ? ips.split(',').map((ip) => ip.trim()) : [];
   }
 
   get authFailureThreshold(): number {
@@ -170,6 +170,6 @@ export class AppConfigService {
 
   get logRedactFields(): string[] {
     const fields = this.configService.get<string>('LOG_REDACT_FIELDS', '');
-    return fields ? fields.split(',').map(f => f.trim()) : [];
+    return fields ? fields.split(',').map((f) => f.trim()) : [];
   }
 }

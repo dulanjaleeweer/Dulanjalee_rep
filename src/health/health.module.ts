@@ -8,10 +8,7 @@ import { RedisModule } from '../redis/redis.module';
  * Provides endpoints for load balancer and monitoring health checks
  */
 @Module({
-  imports: [
-    TerminusModule,
-    RedisModule,
-  ],
+  imports: [TerminusModule, RedisModule],
   controllers: [HealthController],
 })
 export class HealthModule {}

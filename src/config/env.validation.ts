@@ -166,7 +166,7 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
   const validatedConfig = plainToInstance(EnvironmentVariables, config, {
     enableImplicitConversion: true,
   });
-  
+
   const errors = validateSync(validatedConfig, {
     skipMissingProperties: false,
   });
