@@ -11,6 +11,15 @@ import { HealthModule } from './health/health.module';
 import { SecurityAuditModule } from './security-audit/security-audit.module';
 import { MetricsModule } from './metrics/metrics.module';
 
+// Controller modules
+import { AuthModule } from './auth/auth.module';
+import { PasswordModule } from './password/password.module';
+import { EmailVerificationModule } from './email-verification/email-verification.module';
+import { ProfileModule } from './profile/profile.module';
+import { ChildrenModule } from './children/children.module';
+import { ConsentModule } from './consent/consent.module';
+import { PublicModule } from './public/public.module';
+
 @Module({
   imports: [
     // Configuration
@@ -41,6 +50,15 @@ import { MetricsModule } from './metrics/metrics.module';
 
     // Health endpoints
     HealthModule,
+
+    // Controller modules with rate limiting
+    AuthModule, // Login, refresh token, MFA
+    PasswordModule, // Password reset
+    EmailVerificationModule, // Email verification
+    ProfileModule, // User profile (sensitive)
+    ChildrenModule, // Child profiles (sensitive)
+    ConsentModule, // Consent management (sensitive)
+    PublicModule, // Public endpoints
   ],
 })
 export class AppModule implements NestModule {
