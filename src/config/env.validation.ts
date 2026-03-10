@@ -1,5 +1,9 @@
 import { IsString, IsNumber, IsOptional, IsBoolean, Min, Max, validateSync } from 'class-validator';
-import { plainToInstance } from 'class-transformer';
+import { plainToInstance, Transform } from 'class-transformer';
+
+/** Normalise env-var booleans: 'true'/'1' → true, everything else → false. */
+const ToBoolean = () =>
+  Transform(({ value }) => value === true || value === 'true' || value === '1');
 
 /**
  * Environment variable validation schema
@@ -45,10 +49,12 @@ export class EnvironmentVariables {
   @IsOptional()
   REDIS_DB: number = 0;
 
+  @ToBoolean()
   @IsBoolean()
   @IsOptional()
   REDIS_TLS_ENABLED: boolean = false;
 
+  @ToBoolean()
   @IsBoolean()
   @IsOptional()
   REDIS_CLUSTER_ENABLED: boolean = false;
@@ -138,6 +144,40 @@ export class EnvironmentVariables {
   @IsNumber()
   @IsOptional()
   RATE_LIMIT_SENSITIVE_PER_USER_WINDOW: number = 60;
+
+  // Database (PostgreSQL)
+  @IsString()
+  @IsOptional()
+  DB_HOST: string = 'localhost';
+
+  @IsNumber()
+  @Min(1)
+  @Max(65535)
+  @IsOptional()
+  DB_PORT: number = 5432;
+
+  @IsString()
+  @IsOptional()
+  DB_USERNAME: string = 'postgres';
+
+  @IsString()
+  @IsOptional()
+  DB_PASSWORD: string = '';
+
+  @IsString()
+  @IsOptional()
+  DB_NAME: string = 'abc_earlysteps';
+
+  @ToBoolean()
+  @IsBoolean()
+  @IsOptional()
+  DB_SSL: boolean = false;
+
+  @IsNumber()
+  @Min(1)
+  @Max(100)
+  @IsOptional()
+  DB_POOL_MAX: number = 20;
 
   // Security
   @IsString()

@@ -67,6 +67,38 @@ export class AppConfigService {
     return `${protocol}://${auth}${this.redisHost}:${this.redisPort}/${this.redisDb}`;
   }
 
+  // Database (PostgreSQL)
+  get dbHost(): string {
+    return this.configService.get<string>('DB_HOST', 'localhost');
+  }
+
+  get dbPort(): number {
+    return this.configService.get<number>('DB_PORT', 5432);
+  }
+
+  get dbUsername(): string {
+    return this.configService.get<string>('DB_USERNAME', 'postgres');
+  }
+
+  get dbPassword(): string {
+    return this.configService.get<string>('DB_PASSWORD', '');
+  }
+
+  get dbName(): string {
+    return this.configService.get<string>('DB_NAME', 'abc_earlysteps');
+  }
+
+  get dbSsl(): boolean {
+    const val = this.configService.get<string | boolean>('DB_SSL');
+    if (val === undefined || val === null) return false;
+    if (typeof val === 'boolean') return val;
+    return String(val).toLowerCase() === 'true';
+  }
+
+  get dbPoolMax(): number {
+    return this.configService.get<number>('DB_POOL_MAX', 20);
+  }
+
   // Rate Limiting Configuration - Login
   get rateLimitLoginPerIp(): number {
     return this.configService.get<number>('RATE_LIMIT_LOGIN_PER_IP', 10);

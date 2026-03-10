@@ -10,6 +10,7 @@ import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { HealthModule } from './health/health.module';
 import { SecurityAuditModule } from './security-audit/security-audit.module';
 import { MetricsModule } from './metrics/metrics.module';
+import { DatabaseModule } from './database/database.module';
 
 // Controller modules
 import { AuthModule } from './auth/auth.module';
@@ -44,6 +45,9 @@ import { PublicModule } from './public/public.module';
 
     // Metrics (CloudWatch-compatible counters)
     MetricsModule,
+
+    // PostgreSQL + TypeORM
+    DatabaseModule,
 
     // Rate limiting (auto-registers global guard)
     RateLimitModule,

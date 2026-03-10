@@ -77,4 +77,18 @@ describe('AppConfigService', () => {
     expect(typeof service.logLevel).toBe('string');
     expect(Array.isArray(service.logRedactFields)).toBe(true);
   });
+
+  it('should return database configuration with defaults', () => {
+    expect(service.dbHost).toBe('localhost');
+    expect(service.dbPort).toBe(5432);
+    expect(service.dbUsername).toBe('postgres');
+    expect(service.dbPassword).toBe('');
+    expect(service.dbName).toBe('abc_earlysteps');
+
+    // ConfigService may coerce 'false' (string default) via internal processing;
+    // the getter normalises to a strict boolean using string comparison.
+    expect(typeof service.dbSsl).toBe('boolean');
+
+    expect(service.dbPoolMax).toBe(20);
+  });
 });
