@@ -145,6 +145,13 @@ export class EnvironmentVariables {
   @IsOptional()
   RATE_LIMIT_SENSITIVE_PER_USER_WINDOW: number = 60;
 
+  // Password Hashing
+  @IsNumber()
+  @Min(10)
+  @Max(14)
+  @IsOptional()
+  BCRYPT_ROUNDS: number = 12;
+
   // Database (PostgreSQL)
   @IsString()
   @IsOptional()

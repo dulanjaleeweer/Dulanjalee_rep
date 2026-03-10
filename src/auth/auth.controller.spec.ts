@@ -3,15 +3,21 @@ import { UnauthorizedException } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { AuthFailureTrackerService } from '../rate-limit/auth-failure-tracker.service';
 import { AppConfigService } from '../config/config.service';
+import { RegistrationService } from './services/registration.service';
 import { ConfigModule } from '@nestjs/config';
 import { validateEnv } from '../config/env.validation';
 
 describe('AuthController', () => {
   let controller: AuthController;
+  let registrationService: RegistrationService;
 
   const mockAuthFailureTracker = {
     recordLoginFailure: jest.fn().mockResolvedValue(undefined),
     resetFailures: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const mockRegistrationService = {
+    register: jest.fn().mockResolvedValue({ status: 'ok' }),
   };
 
   const mockRequest = {
@@ -36,17 +42,56 @@ describe('AuthController', () => {
           provide: AuthFailureTrackerService,
           useValue: mockAuthFailureTracker,
         },
+        {
+          provide: RegistrationService,
+          useValue: mockRegistrationService,
+        },
         AppConfigService,
       ],
     }).compile();
 
     controller = module.get<AuthController>(AuthController);
+    registrationService = module.get<RegistrationService>(RegistrationService);
 
     jest.clearAllMocks();
   });
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  describe('register', () => {
+    const registerDto = {
+      email: 'newuser@example.com',
+      password: 'MyStr0ng!Pass',
+      displayName: 'New User',
+    };
+
+    it('should return { status: "ok" }', async () => {
+      const result = await controller.register(registerDto as never, mockRequest as never);
+      expect(result).toEqual({ status: 'ok' });
+    });
+
+    it('should delegate to RegistrationService', async () => {
+      await controller.register(registerDto as never, mockRequest as never);
+
+      expect(registrationService.register).toHaveBeenCalledWith(
+        registerDto,
+        expect.any(String), // ipHash
+        'test-request-id', // requestId
+      );
+    });
+
+    it('should use "unknown" as requestId when header is missing', async () => {
+      const reqWithoutId = { ...mockRequest, headers: {} };
+      await controller.register(registerDto as never, reqWithoutId as never);
+
+      expect(registrationService.register).toHaveBeenCalledWith(
+        registerDto,
+        expect.any(String),
+        'unknown',
+      );
+    });
   });
 
   describe('login', () => {
@@ -87,7 +132,6 @@ describe('AuthController', () => {
       }
 
       expect(mockAuthFailureTracker.recordLoginFailure).toHaveBeenCalled();
-      // Verify the call was made with IP, email hash, and request ID
       const calls = mockAuthFailureTracker.recordLoginFailure.mock.calls;
       const lastCall = calls[calls.length - 1];
       expect(lastCall[0]).toEqual(expect.any(String)); // IP
@@ -104,11 +148,10 @@ describe('AuthController', () => {
         // Expected to throw
       }
 
-      // Should be called with hashed email (get last call)
       const calls = mockAuthFailureTracker.recordLoginFailure.mock.calls;
       const lastCall = calls[calls.length - 1];
-      expect(lastCall[1]).toBeDefined(); // emailHash should be provided
-      expect(lastCall[1]).not.toBe(email); // should be hashed, not raw
+      expect(lastCall[1]).toBeDefined();
+      expect(lastCall[1]).not.toBe(email);
     });
   });
 

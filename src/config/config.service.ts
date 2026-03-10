@@ -99,6 +99,11 @@ export class AppConfigService {
     return this.configService.get<number>('DB_POOL_MAX', 20);
   }
 
+  // Password Hashing
+  get bcryptRounds(): number {
+    return this.configService.get<number>('BCRYPT_ROUNDS', 12);
+  }
+
   // Rate Limiting Configuration - Login
   get rateLimitLoginPerIp(): number {
     return this.configService.get<number>('RATE_LIMIT_LOGIN_PER_IP', 10);

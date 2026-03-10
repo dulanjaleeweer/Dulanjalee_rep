@@ -12,6 +12,8 @@ import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { AuthFailureTrackerService } from '../rate-limit/auth-failure-tracker.service';
 import { extractClientIp, hashEmail, extractTenantId } from '../rate-limit/rate-limit.utils';
 import { AppConfigService } from '../config/config.service';
+import { RegisterDto } from './dto/register.dto';
+import { RegistrationService } from './services/registration.service';
 
 /**
  * Login request DTO
@@ -46,7 +48,27 @@ export class AuthController {
   constructor(
     private readonly authFailureTracker: AuthFailureTrackerService,
     private readonly configService: AppConfigService,
+    private readonly registrationService: RegistrationService,
   ) {}
+
+  /**
+   * Registration endpoint
+   * Always returns 201 { status: 'ok' } for anti-enumeration.
+   * Rate limited: 5 requests per IP per 15 minutes, fail-safe (503 if Redis down).
+   */
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  @RateLimit({ type: 'login', limit: 5, windowSeconds: 900 })
+  async register(@Body() dto: RegisterDto, @Req() req: Request): Promise<{ status: string }> {
+    const ip = extractClientIp(req, {
+      trustedProxies: this.configService.trustedProxyIps,
+      trustProxy: this.configService.trustedProxyIps.length > 0,
+    });
+    const requestId = (req.headers['x-request-id'] as string) || 'unknown';
+    const ipHash = hashEmail(ip) ?? 'unknown';
+
+    return this.registrationService.register(dto, ipHash, requestId);
+  }
 
   /**
    * Login endpoint
