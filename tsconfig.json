@@ -24,5 +24,7 @@
       "@redis/*": ["src/redis/*"],
       "@health/*": ["src/health/*"]
     }
-  }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "packages"]
 }

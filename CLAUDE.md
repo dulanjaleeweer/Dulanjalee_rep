@@ -1,22 +1,31 @@
-# CLAUDE.md - ABC EarlySteps Backend
+# CLAUDE.md - ABC EarlySteps
 
 ## Project Overview
 
-ABC EarlySteps is a multi-tenant SaaS platform for early childhood autism support. This is the NestJS backend API.
+ABC EarlySteps is a multi-tenant SaaS platform for early childhood autism support. This repo contains the NestJS backend API and frontend packages.
 
-**Stack**: NestJS 10.x, TypeScript (strict), PostgreSQL, Redis, Pino logging, Jest
+**Backend Stack**: NestJS 10.x, TypeScript (strict), PostgreSQL, Redis, Pino logging, Jest
+**Frontend Stack**: Next.js 14 (web), React Native/Expo (mobile), shared validation package
 
 ## Quick Commands
 
 ```bash
+# Backend (root)
 npm run start:dev     # Dev server with hot reload
 npm run build         # Production build
-npm run test          # Unit tests (Jest)
+npm run test          # Unit tests (Jest, 231 tests)
 npm run test:cov      # Tests with coverage
 npm run lint          # ESLint with auto-fix
 npm run format        # Prettier formatting
 npm run migration:run # Run TypeORM migrations
 npm run migration:revert # Revert last migration
+
+# Frontend packages
+cd packages/shared && npm test   # Shared validation tests (33 tests)
+cd packages/web && npm test      # Web component tests (17 tests)
+cd packages/web && npm run dev   # Next.js dev server
+cd packages/mobile && npm test   # Mobile hook tests (8 tests)
+cd packages/mobile && npm start  # Expo dev server
 ```
 
 ## Module Structure
@@ -45,6 +54,23 @@ src/
 ├── rate-limit/            # Global RateLimitGuard, RateLimitService (Lua), decorators
 ├── redis/                 # RedisService (ioredis), RedisHealthIndicator
 └── security-audit/        # SecurityAuditService: structured events, PII hashing
+
+packages/
+├── shared/                # @abc-earlysteps/shared: types, validation, API client
+│   └── src/
+│       ├── types.ts       # UserRole enum, RegisterRequest/Response interfaces
+│       ├── validation.ts  # Client-side password policy (mirrors backend rules)
+│       └── api.ts         # registerUser() fetch wrapper with error handling
+├── web/                   # @abc-earlysteps/web: Next.js 14 registration UI
+│   └── src/
+│       ├── app/register/  # /register route (App Router)
+│       ├── components/    # RegisterForm, PasswordStrengthIndicator, RoleSelector
+│       └── hooks/         # useRegister hook (validation + API)
+└── mobile/                # @abc-earlysteps/mobile: React Native/Expo registration UI
+    └── src/
+        ├── screens/       # RegisterScreen (SafeAreaView wrapper)
+        ├── components/    # RegisterForm, PasswordStrengthIndicator, RoleSelector
+        └── hooks/         # useRegister hook (shared logic with web)
 ```
 
 ## Code Standards
@@ -117,7 +143,7 @@ Branch: `feature/59-user-registration-with-email-and-password-tenant-aware-secur
 - [x] Step 2: PostgreSQL persistence (TypeORM entities + migrations for tenants, users, credentials, roles)
 - [x] Step 3: POST /v1/auth/register endpoint with password policy, anti-enumeration, rate limiting
 - [x] Step 4: Security audit + observability hooks for registration
-- [ ] Step 5: Frontend UIs (Next.js web + React Native mobile)
+- [x] Step 5: Frontend UIs (Next.js web + React Native mobile)
 
 ### Registration Design Decisions
 - Global email uniqueness (not per-tenant)
@@ -128,3 +154,14 @@ Branch: `feature/59-user-registration-with-email-and-password-tenant-aware-secur
 - Transactional: all-or-nothing record creation via QueryRunner
 - Password policy: 12-72 chars, 3/4 categories (lower, upper, digit, symbol), common password denylist
 - RegisterDto defaults role to FAMILY_OWNER; acceptTerms optional
+
+### Frontend Registration UIs
+- **Shared package** (`@abc-earlysteps/shared`): client-side password validation mirrors backend PasswordPolicyService rules, subset (~50) of common password denylist for bundle size
+- **Anti-enumeration UX**: success screen shows "If an account was created, we sent a verification link" — same message for new and duplicate emails
+- **Password strength indicator**: 4-segment bar (Weak/Fair/Good/Strong), individual rule checklist with checkmarks
+- **Accessibility**: WCAG 2.1, `aria-label`, `aria-invalid`, `role="alert"` for errors, `role="status"` for strength feedback, screen-reader-only requirement status text
+- **Low-sensory design**: calm color palette, no animations/flashing, non-judgmental validation messages
+- **Role selector**: radio-style cards for FAMILY_OWNER, CAREGIVER, PROFESSIONAL_THERAPIST (public roles only)
+- **API client**: platform-agnostic fetch wrapper, handles 201/400/429/503 responses with user-friendly messages
+- **Web**: Next.js 14 App Router, `/register` route, `useRegister` hook
+- **Mobile**: React Native/Expo, `RegisterScreen`, `KeyboardAvoidingView`, `secureTextEntry` toggle
