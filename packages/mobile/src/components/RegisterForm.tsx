@@ -104,7 +104,7 @@ export function RegisterForm({ onLoginPress }: RegisterFormProps) {
             editable={!isSubmitting}
             autoComplete="name"
             textContentType="name"
-            style={[styles.input, displayNameError && styles.inputError]}
+            style={[styles.input, displayNameError ? styles.inputError : undefined]}
             accessibilityLabel="Display name"
             accessibilityState={{ disabled: isSubmitting }}
           />
@@ -131,7 +131,7 @@ export function RegisterForm({ onLoginPress }: RegisterFormProps) {
             autoCorrect={false}
             autoComplete="email"
             textContentType="emailAddress"
-            style={[styles.input, emailError && styles.inputError]}
+            style={[styles.input, emailError ? styles.inputError : undefined]}
             accessibilityLabel="Email address"
             accessibilityState={{ disabled: isSubmitting }}
           />
