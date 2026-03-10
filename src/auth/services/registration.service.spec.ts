@@ -4,12 +4,16 @@ import { DataSource } from 'typeorm';
 import { RegistrationService } from './registration.service';
 import { PasswordService } from './password.service';
 import { PasswordPolicyService } from './password-policy.service';
+import { SecurityAuditService } from '../../security-audit/security-audit.service';
+import { MetricsService } from '../../metrics/metrics.service';
 import { RegisterDto } from '../dto/register.dto';
 import { UserRole, TenantType, UserStatus } from '../../entities/enums';
 
 describe('RegistrationService', () => {
   let service: RegistrationService;
   let passwordService: PasswordService;
+  let securityAuditService: SecurityAuditService;
+  let metricsService: MetricsService;
 
   const mockQueryRunner = {
     connect: jest.fn(),
@@ -43,6 +47,19 @@ describe('RegistrationService', () => {
     algorithm: 'bcrypt',
   };
 
+  const mockSecurityAuditService = {
+    logRegistrationAttempt: jest.fn(),
+    hashEmail: jest.fn().mockReturnValue('hashed-email-abc'),
+  };
+
+  const mockMetricsService = {
+    incrementRegistrationAttempt: jest.fn(),
+    incrementRegistrationSuccess: jest.fn(),
+    incrementRegistrationDuplicate: jest.fn(),
+    incrementRegistrationValidationFailed: jest.fn(),
+    incrementRegistrationError: jest.fn(),
+  };
+
   const validDto: RegisterDto = {
     email: 'newuser@example.com',
     password: 'MyStr0ng!Pass',
@@ -57,12 +74,16 @@ describe('RegistrationService', () => {
         RegistrationService,
         { provide: DataSource, useValue: mockDataSource },
         { provide: PasswordService, useValue: mockPasswordService },
+        { provide: SecurityAuditService, useValue: mockSecurityAuditService },
+        { provide: MetricsService, useValue: mockMetricsService },
         PasswordPolicyService,
       ],
     }).compile();
 
     service = module.get<RegistrationService>(RegistrationService);
     passwordService = module.get<PasswordService>(PasswordService);
+    securityAuditService = module.get<SecurityAuditService>(SecurityAuditService);
+    metricsService = module.get<MetricsService>(MetricsService);
 
     jest.clearAllMocks();
     mockUserRepository.findOne.mockResolvedValue(null);
@@ -168,6 +189,38 @@ describe('RegistrationService', () => {
         role: UserRole.FAMILY_OWNER,
       });
     });
+
+    it('should emit audit event with outcome "created"', async () => {
+      await service.register(validDto, 'ip-hash', 'req-1');
+
+      expect(securityAuditService.logRegistrationAttempt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outcome: 'created',
+          emailHash: 'hashed-email-abc',
+          ipHash: 'ip-hash',
+          requestId: 'req-1',
+          role: UserRole.FAMILY_OWNER,
+          tenantType: TenantType.FAMILY,
+          userId: 'user-uuid',
+          tenantId: 'tenant-uuid',
+        }),
+      );
+    });
+
+    it('should increment attempt and success metrics', async () => {
+      await service.register(validDto, 'ip-hash', 'req-1');
+
+      expect(metricsService.incrementRegistrationAttempt).toHaveBeenCalledTimes(1);
+      expect(metricsService.incrementRegistrationSuccess).toHaveBeenCalledWith(
+        UserRole.FAMILY_OWNER,
+      );
+    });
+
+    it('should hash email via securityAuditService.hashEmail', async () => {
+      await service.register(validDto, 'ip-hash', 'req-1');
+
+      expect(securityAuditService.hashEmail).toHaveBeenCalledWith(validDto.email);
+    });
   });
 
   describe('duplicate email (anti-enumeration)', () => {
@@ -191,6 +244,41 @@ describe('RegistrationService', () => {
       await service.register(validDto, 'ip-hash', 'req-1');
       expect(passwordService.hash).toHaveBeenCalledWith(validDto.password);
     });
+
+    it('should emit audit event with outcome "duplicate"', async () => {
+      mockUserRepository.findOne.mockResolvedValue({ id: 'existing-user' });
+
+      await service.register(validDto, 'ip-hash', 'req-1');
+
+      expect(securityAuditService.logRegistrationAttempt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outcome: 'duplicate',
+          emailHash: 'hashed-email-abc',
+          ipHash: 'ip-hash',
+          requestId: 'req-1',
+        }),
+      );
+    });
+
+    it('should not include userId or tenantId in duplicate audit event', async () => {
+      mockUserRepository.findOne.mockResolvedValue({ id: 'existing-user' });
+
+      await service.register(validDto, 'ip-hash', 'req-1');
+
+      const call = mockSecurityAuditService.logRegistrationAttempt.mock.calls[0][0];
+      expect(call.userId).toBeUndefined();
+      expect(call.tenantId).toBeUndefined();
+    });
+
+    it('should increment attempt and duplicate metrics', async () => {
+      mockUserRepository.findOne.mockResolvedValue({ id: 'existing-user' });
+
+      await service.register(validDto, 'ip-hash', 'req-1');
+
+      expect(metricsService.incrementRegistrationAttempt).toHaveBeenCalledTimes(1);
+      expect(metricsService.incrementRegistrationDuplicate).toHaveBeenCalledTimes(1);
+      expect(metricsService.incrementRegistrationSuccess).not.toHaveBeenCalled();
+    });
   });
 
   describe('password policy validation', () => {
@@ -207,6 +295,37 @@ describe('RegistrationService', () => {
         // Expected
       }
       expect(mockUserRepository.findOne).not.toHaveBeenCalled();
+    });
+
+    it('should emit audit event with outcome "validation_failed"', async () => {
+      const dto = { ...validDto, password: 'short' };
+      try {
+        await service.register(dto, 'ip-hash', 'req-1');
+      } catch {
+        // Expected
+      }
+
+      expect(securityAuditService.logRegistrationAttempt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outcome: 'validation_failed',
+          validationErrors: expect.arrayContaining([
+            expect.stringContaining('at least 12 characters'),
+          ]),
+        }),
+      );
+    });
+
+    it('should increment attempt and validation_failed metrics', async () => {
+      const dto = { ...validDto, password: 'short' };
+      try {
+        await service.register(dto, 'ip-hash', 'req-1');
+      } catch {
+        // Expected
+      }
+
+      expect(metricsService.incrementRegistrationAttempt).toHaveBeenCalledTimes(1);
+      expect(metricsService.incrementRegistrationValidationFailed).toHaveBeenCalledTimes(1);
+      expect(metricsService.incrementRegistrationSuccess).not.toHaveBeenCalled();
     });
   });
 
@@ -227,6 +346,39 @@ describe('RegistrationService', () => {
       await expect(service.register(validDto, 'ip-hash', 'req-1')).rejects.toThrow(
         'Registration failed',
       );
+    });
+
+    it('should emit audit event with outcome "error"', async () => {
+      mockQueryRunner.manager.save.mockRejectedValueOnce(new Error('DB error'));
+
+      try {
+        await service.register(validDto, 'ip-hash', 'req-1');
+      } catch {
+        // Expected
+      }
+
+      expect(securityAuditService.logRegistrationAttempt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outcome: 'error',
+          emailHash: 'hashed-email-abc',
+          ipHash: 'ip-hash',
+          requestId: 'req-1',
+        }),
+      );
+    });
+
+    it('should increment attempt and error metrics', async () => {
+      mockQueryRunner.manager.save.mockRejectedValueOnce(new Error('DB error'));
+
+      try {
+        await service.register(validDto, 'ip-hash', 'req-1');
+      } catch {
+        // Expected
+      }
+
+      expect(metricsService.incrementRegistrationAttempt).toHaveBeenCalledTimes(1);
+      expect(metricsService.incrementRegistrationError).toHaveBeenCalledTimes(1);
+      expect(metricsService.incrementRegistrationSuccess).not.toHaveBeenCalled();
     });
   });
 });

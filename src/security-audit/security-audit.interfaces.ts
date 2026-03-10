@@ -10,7 +10,8 @@ export type SecurityEventType =
   | 'SECURITY_RATE_LIMIT_BLOCKED'
   | 'SECURITY_AUTH_FAILED_THRESHOLD_REACHED'
   | 'SECURITY_REDIS_UNAVAILABLE'
-  | 'SECURITY_ANOMALY_DETECTED';
+  | 'SECURITY_ANOMALY_DETECTED'
+  | 'SECURITY_REGISTRATION_ATTEMPT';
 
 /**
  * Base security audit event
@@ -114,13 +115,42 @@ export interface AnomalyDetectedEvent extends SecurityAuditEvent {
 }
 
 /**
+ * Registration attempt outcome
+ */
+export type RegistrationOutcome = 'created' | 'duplicate' | 'validation_failed' | 'error';
+
+/**
+ * Registration attempt event
+ * Emitted for every registration attempt with PII-safe fields only
+ */
+export interface RegistrationAttemptEvent extends SecurityAuditEvent {
+  eventType: 'SECURITY_REGISTRATION_ATTEMPT';
+
+  /** Outcome of the registration attempt */
+  outcome: RegistrationOutcome;
+
+  /** Hashed email (SHA-256, truncated) — distinct from ipHash */
+  emailHash: string;
+
+  /** Requested role (not PII) */
+  role?: string;
+
+  /** Tenant type created (only on success) */
+  tenantType?: string;
+
+  /** Validation error messages (policy rules, no PII) */
+  validationErrors?: string[];
+}
+
+/**
  * Union type of all security events
  */
 export type SecurityEvent =
   | RateLimitBlockedEvent
   | AuthFailedThresholdEvent
   | RedisUnavailableEvent
-  | AnomalyDetectedEvent;
+  | AnomalyDetectedEvent
+  | RegistrationAttemptEvent;
 
 /**
  * Security audit logger interface
@@ -130,4 +160,5 @@ export interface ISecurityAuditLogger {
   logRateLimitBlocked(event: Omit<RateLimitBlockedEvent, 'eventType' | 'timestamp'>): void;
   logAuthFailedThreshold(event: Omit<AuthFailedThresholdEvent, 'eventType' | 'timestamp'>): void;
   logRedisUnavailable(event: Omit<RedisUnavailableEvent, 'eventType' | 'timestamp'>): void;
+  logRegistrationAttempt(event: Omit<RegistrationAttemptEvent, 'eventType' | 'timestamp'>): void;
 }

@@ -8,14 +8,24 @@ import { DataSource } from 'typeorm';
 import { RegisterDto } from '../dto/register.dto';
 import { PasswordService } from './password.service';
 import { PasswordPolicyService } from './password-policy.service';
+import { SecurityAuditService } from '../../security-audit/security-audit.service';
+import { MetricsService } from '../../metrics/metrics.service';
 import { Tenant } from '../../entities/tenant.entity';
 import { User } from '../../entities/user.entity';
 import { UserCredentials } from '../../entities/user-credentials.entity';
 import { UserRoleAssignment } from '../../entities/user-role.entity';
 import { TenantType, UserStatus, UserRole } from '../../entities/enums';
+import { RegistrationOutcome } from '../../security-audit/security-audit.interfaces';
+
+/** Route constant for audit events */
+const REGISTER_ROUTE = '/api/v1/auth/register';
 
 /**
  * Orchestrates user registration with transactional integrity.
+ *
+ * Every outcome emits:
+ * - A structured security audit event (PII-safe, hashed email/IP)
+ * - Metric counter increments for observability dashboards
  *
  * Flow:
  * 1. Validate password against policy (reject early with 400)
@@ -32,6 +42,8 @@ export class RegistrationService {
     private readonly dataSource: DataSource,
     private readonly passwordService: PasswordService,
     private readonly passwordPolicyService: PasswordPolicyService,
+    private readonly securityAuditService: SecurityAuditService,
+    private readonly metricsService: MetricsService,
   ) {}
 
   /**
@@ -42,9 +54,18 @@ export class RegistrationService {
    * @throws InternalServerErrorException on transaction failure.
    */
   async register(dto: RegisterDto, ipHash: string, requestId: string): Promise<{ status: string }> {
+    const emailHash = this.securityAuditService.hashEmail(dto.email);
+
     // 1. Validate password against policy (before any DB work)
     const policyResult = this.passwordPolicyService.validate(dto.password);
     if (!policyResult.valid) {
+      this.emitAuditAndMetrics('validation_failed', {
+        ipHash,
+        emailHash,
+        requestId,
+        role: dto.role,
+        validationErrors: policyResult.errors,
+      });
       throw new BadRequestException(policyResult.errors);
     }
 
@@ -58,12 +79,14 @@ export class RegistrationService {
     });
 
     if (existingUser) {
-      this.logger.log('Registration attempt for existing email', {
-        emailHash: ipHash, // Already hashed by caller
-        requestId,
-      });
       // Hash the password anyway to prevent timing-based enumeration
       await this.passwordService.hash(dto.password);
+      this.emitAuditAndMetrics('duplicate', {
+        ipHash,
+        emailHash,
+        requestId,
+        role: dto.role,
+      });
       return { status: 'ok' };
     }
 
@@ -113,11 +136,14 @@ export class RegistrationService {
 
       await queryRunner.commitTransaction();
 
-      this.logger.log('Registration succeeded', {
+      this.emitAuditAndMetrics('created', {
+        ipHash,
+        emailHash,
+        requestId,
+        role: dto.role,
+        tenantType,
         userId: savedUser.id,
         tenantId: savedTenant.id,
-        role: dto.role,
-        requestId,
       });
 
       return { status: 'ok' };
@@ -129,10 +155,69 @@ export class RegistrationService {
         requestId,
       });
 
+      this.emitAuditAndMetrics('error', {
+        ipHash,
+        emailHash,
+        requestId,
+        role: dto.role,
+      });
+
       throw new InternalServerErrorException('Registration failed');
     } finally {
       await queryRunner.release();
     }
+  }
+
+  /**
+   * Emit a security audit event and increment metrics for the given outcome.
+   * Centralises all observability in one place to keep the main flow readable.
+   */
+  private emitAuditAndMetrics(
+    outcome: RegistrationOutcome,
+    context: {
+      ipHash: string;
+      emailHash: string;
+      requestId: string;
+      role?: string;
+      tenantType?: string;
+      userId?: string;
+      tenantId?: string;
+      validationErrors?: string[];
+    },
+  ): void {
+    // Always increment the attempt counter
+    this.metricsService.incrementRegistrationAttempt();
+
+    // Increment outcome-specific counter
+    switch (outcome) {
+      case 'created':
+        this.metricsService.incrementRegistrationSuccess(context.role ?? 'unknown');
+        break;
+      case 'duplicate':
+        this.metricsService.incrementRegistrationDuplicate();
+        break;
+      case 'validation_failed':
+        this.metricsService.incrementRegistrationValidationFailed();
+        break;
+      case 'error':
+        this.metricsService.incrementRegistrationError();
+        break;
+    }
+
+    // Emit structured audit event (all PII hashed)
+    this.securityAuditService.logRegistrationAttempt({
+      route: REGISTER_ROUTE,
+      ipHash: context.ipHash,
+      emailHash: context.emailHash,
+      keyType: 'email-hash',
+      requestId: context.requestId,
+      outcome,
+      role: context.role,
+      tenantType: context.tenantType,
+      userId: context.userId,
+      tenantId: context.tenantId,
+      validationErrors: context.validationErrors,
+    });
   }
 
   /**

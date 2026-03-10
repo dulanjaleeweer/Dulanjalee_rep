@@ -4,6 +4,7 @@ import {
   RateLimitBlockedEvent,
   AuthFailedThresholdEvent,
   RedisUnavailableEvent,
+  RegistrationAttemptEvent,
 } from './security-audit.interfaces';
 
 describe('SecurityAuditService', () => {
@@ -141,6 +142,70 @@ describe('SecurityAuditService', () => {
       const loggedArg = consoleSpy.mock.calls[0][1] as RedisUnavailableEvent;
       expect(loggedArg.eventType).toBe('SECURITY_REDIS_UNAVAILABLE');
       expect(loggedArg.isAuthEndpoint).toBe(true);
+    });
+  });
+
+  describe('logRegistrationAttempt', () => {
+    it('should log registration attempt event with correct eventType', () => {
+      const consoleSpy = jest.spyOn(service['logger'], 'warn');
+
+      const eventData = {
+        route: '/api/v1/auth/register',
+        ipHash: 'iphash123',
+        emailHash: 'emailhash456',
+        keyType: 'email-hash' as const,
+        requestId: 'req-001',
+        outcome: 'created' as const,
+        role: 'FAMILY_OWNER',
+        tenantType: 'FAMILY',
+      };
+
+      service.logRegistrationAttempt(eventData);
+
+      expect(consoleSpy).toHaveBeenCalled();
+      const loggedArg = consoleSpy.mock.calls[0][1] as RegistrationAttemptEvent;
+      expect(loggedArg.eventType).toBe('SECURITY_REGISTRATION_ATTEMPT');
+      expect(loggedArg.outcome).toBe('created');
+      expect(loggedArg.emailHash).toBe('emailhash456');
+      expect(loggedArg.role).toBe('FAMILY_OWNER');
+      expect(loggedArg.tenantType).toBe('FAMILY');
+      expect(loggedArg.timestamp).toBeDefined();
+    });
+
+    it('should log duplicate outcome without userId or tenantId', () => {
+      const consoleSpy = jest.spyOn(service['logger'], 'warn');
+
+      service.logRegistrationAttempt({
+        route: '/api/v1/auth/register',
+        ipHash: 'iphash123',
+        emailHash: 'emailhash456',
+        keyType: 'email-hash',
+        requestId: 'req-002',
+        outcome: 'duplicate',
+      });
+
+      const loggedArg = consoleSpy.mock.calls[0][1] as RegistrationAttemptEvent;
+      expect(loggedArg.outcome).toBe('duplicate');
+      expect(loggedArg.userId).toBeUndefined();
+      expect(loggedArg.tenantId).toBeUndefined();
+    });
+
+    it('should log validation_failed outcome with error messages', () => {
+      const consoleSpy = jest.spyOn(service['logger'], 'warn');
+
+      service.logRegistrationAttempt({
+        route: '/api/v1/auth/register',
+        ipHash: 'iphash123',
+        emailHash: 'emailhash456',
+        keyType: 'email-hash',
+        requestId: 'req-003',
+        outcome: 'validation_failed',
+        validationErrors: ['Password must be at least 12 characters'],
+      });
+
+      const loggedArg = consoleSpy.mock.calls[0][1] as RegistrationAttemptEvent;
+      expect(loggedArg.outcome).toBe('validation_failed');
+      expect(loggedArg.validationErrors).toEqual(['Password must be at least 12 characters']);
     });
   });
 });

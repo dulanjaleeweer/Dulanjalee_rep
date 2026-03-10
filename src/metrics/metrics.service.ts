@@ -194,4 +194,39 @@ export class MetricsService implements IMetricsCollector {
       route,
     });
   }
+
+  /**
+   * Increment registration attempt counter (all outcomes)
+   */
+  incrementRegistrationAttempt(): void {
+    this.increment(METRIC_NAMES.REGISTRATION_ATTEMPT_TOTAL);
+  }
+
+  /**
+   * Increment registration success counter
+   */
+  incrementRegistrationSuccess(role: string): void {
+    this.increment(METRIC_NAMES.REGISTRATION_SUCCESS_TOTAL, { role });
+  }
+
+  /**
+   * Increment registration duplicate counter
+   */
+  incrementRegistrationDuplicate(): void {
+    this.increment(METRIC_NAMES.REGISTRATION_DUPLICATE_TOTAL);
+  }
+
+  /**
+   * Increment registration validation failure counter
+   */
+  incrementRegistrationValidationFailed(): void {
+    this.increment(METRIC_NAMES.REGISTRATION_VALIDATION_FAILED_TOTAL);
+  }
+
+  /**
+   * Increment registration error counter
+   */
+  incrementRegistrationError(): void {
+    this.increment(METRIC_NAMES.REGISTRATION_ERROR_TOTAL);
+  }
 }

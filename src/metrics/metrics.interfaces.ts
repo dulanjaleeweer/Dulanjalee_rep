@@ -59,6 +59,21 @@ export const METRIC_NAMES = {
 
   /** Auth failure threshold reached */
   AUTH_FAILURE_THRESHOLD_REACHED: 'auth_failure_threshold_reached_total',
+
+  /** Registration attempt counter (all outcomes) */
+  REGISTRATION_ATTEMPT_TOTAL: 'registration_attempt_total',
+
+  /** Registration success counter (new account created) */
+  REGISTRATION_SUCCESS_TOTAL: 'registration_success_total',
+
+  /** Registration duplicate counter (existing email) */
+  REGISTRATION_DUPLICATE_TOTAL: 'registration_duplicate_total',
+
+  /** Registration validation failure counter (password policy) */
+  REGISTRATION_VALIDATION_FAILED_TOTAL: 'registration_validation_failed_total',
+
+  /** Registration error counter (transaction/system failure) */
+  REGISTRATION_ERROR_TOTAL: 'registration_error_total',
 } as const;
 
 /**

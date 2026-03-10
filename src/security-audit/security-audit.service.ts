@@ -5,6 +5,7 @@ import {
   RateLimitBlockedEvent,
   AuthFailedThresholdEvent,
   RedisUnavailableEvent,
+  RegistrationAttemptEvent,
   ISecurityAuditLogger,
 } from './security-audit.interfaces';
 
@@ -75,6 +76,19 @@ export class SecurityAuditService implements ISecurityAuditLogger {
     const fullEvent: RedisUnavailableEvent = {
       ...event,
       eventType: 'SECURITY_REDIS_UNAVAILABLE',
+      timestamp: new Date().toISOString(),
+    };
+
+    this.logEvent(fullEvent);
+  }
+
+  /**
+   * Log registration attempt event
+   */
+  logRegistrationAttempt(event: Omit<RegistrationAttemptEvent, 'eventType' | 'timestamp'>): void {
+    const fullEvent: RegistrationAttemptEvent = {
+      ...event,
+      eventType: 'SECURITY_REGISTRATION_ATTEMPT',
       timestamp: new Date().toISOString(),
     };
 

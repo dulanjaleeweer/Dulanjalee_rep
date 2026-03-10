@@ -154,4 +154,46 @@ describe('MetricsService', () => {
       expect(service.getAllCounters().size).toBe(0);
     });
   });
+
+  describe('incrementRegistrationAttempt', () => {
+    it('should increment registration attempt counter', () => {
+      service.incrementRegistrationAttempt();
+
+      expect(service.getCounter(METRIC_NAMES.REGISTRATION_ATTEMPT_TOTAL)).toBe(1);
+    });
+  });
+
+  describe('incrementRegistrationSuccess', () => {
+    it('should increment registration success counter with role label', () => {
+      service.incrementRegistrationSuccess('FAMILY_OWNER');
+
+      expect(
+        service.getCounter(METRIC_NAMES.REGISTRATION_SUCCESS_TOTAL, { role: 'FAMILY_OWNER' }),
+      ).toBe(1);
+    });
+  });
+
+  describe('incrementRegistrationDuplicate', () => {
+    it('should increment registration duplicate counter', () => {
+      service.incrementRegistrationDuplicate();
+
+      expect(service.getCounter(METRIC_NAMES.REGISTRATION_DUPLICATE_TOTAL)).toBe(1);
+    });
+  });
+
+  describe('incrementRegistrationValidationFailed', () => {
+    it('should increment registration validation failed counter', () => {
+      service.incrementRegistrationValidationFailed();
+
+      expect(service.getCounter(METRIC_NAMES.REGISTRATION_VALIDATION_FAILED_TOTAL)).toBe(1);
+    });
+  });
+
+  describe('incrementRegistrationError', () => {
+    it('should increment registration error counter', () => {
+      service.incrementRegistrationError();
+
+      expect(service.getCounter(METRIC_NAMES.REGISTRATION_ERROR_TOTAL)).toBe(1);
+    });
+  });
 });
