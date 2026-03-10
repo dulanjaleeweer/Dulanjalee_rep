@@ -15,6 +15,8 @@ npm run test          # Unit tests (Jest)
 npm run test:cov      # Tests with coverage
 npm run lint          # ESLint with auto-fix
 npm run format        # Prettier formatting
+npm run migration:run # Run TypeORM migrations
+npm run migration:revert # Revert last migration
 ```
 
 ## Module Structure
@@ -25,10 +27,12 @@ src/
 ├── main.ts                # Bootstrap: Pino logger, global validation pipe, API prefix api/v1
 ├── auth/                  # Authentication (login, refresh, MFA stub, registration)
 ├── children/              # Child profile endpoints (stub, sensitive)
+├── database/              # DatabaseModule (TypeORM), migrations, CLI config
 ├── common/
 │   ├── logger/            # Pino logger factory with PII redaction
 │   └── middleware/        # CorrelationIdMiddleware (UUID on all requests)
 ├── config/                # AppConfigModule (global), typed AppConfigService, env validation
+├── entities/              # TypeORM entities: Tenant, User, UserCredentials, UserRoleAssignment
 ├── consent/               # Consent management (stub, sensitive)
 ├── email-verification/    # Email verification (stub)
 ├── health/                # GET /api/v1/health, /health/ready, /health/live
@@ -84,7 +88,7 @@ Branch: `feature/59-user-registration-with-email-and-password-tenant-aware-secur
 
 ### Implementation Status
 - [x] Step 1: Merged foundational modules from feature/66 (Config, Logger, Redis, RateLimit, SecurityAudit, Metrics, Health)
-- [ ] Step 2: PostgreSQL persistence (TypeORM entities + migrations for tenants, users, credentials, roles)
+- [x] Step 2: PostgreSQL persistence (TypeORM entities + migrations for tenants, users, credentials, roles)
 - [ ] Step 3: POST /v1/auth/register endpoint with password policy, anti-enumeration, rate limiting
 - [ ] Step 4: Security audit + observability for registration
 - [ ] Step 5: Frontend UIs (Next.js web + React Native mobile)
