@@ -26,6 +26,8 @@ src/
 ├── app.module.ts          # Root module, wires all modules + correlation ID middleware
 ├── main.ts                # Bootstrap: Pino logger, global validation pipe, API prefix api/v1
 ├── auth/                  # Authentication (login, refresh, MFA stub, registration)
+│   ├── dto/               # RegisterDto with class-validator decorators
+│   └── services/          # RegistrationService, PasswordService, PasswordPolicyService
 ├── children/              # Child profile endpoints (stub, sensitive)
 ├── database/              # DatabaseModule (TypeORM), migrations, CLI config
 ├── common/
@@ -58,12 +60,20 @@ src/
 ### Rate Limiting
 ```typescript
 @RateLimit('login')              // Simple: uses defaults from config
-@RateLimit({ type: 'sensitive', limit: 300, windowSeconds: 60 })  // Custom
+@RateLimit({ type: 'login', limit: 5, windowSeconds: 900 })  // Custom overrides
 @SkipRateLimit()                 // Bypass
 ```
 - Global guard registered via APP_GUARD
 - Auth endpoints fail-safe (503 if Redis down); others fail-open
 - Multi-strategy keys: IP, email-hash, user, tenant
+
+### Registration (POST /v1/auth/register)
+- **Anti-enumeration**: Always returns `201 { status: 'ok' }` whether email is new or exists
+- **Timing-attack mitigation**: Password hashed even for duplicate emails
+- **Transactional**: Tenant + User + UserCredentials + UserRoleAssignment in single DB transaction
+- **Password policy**: 12-72 chars, 3-of-4 categories (lower, upper, digit, symbol), common password denylist (~200 entries)
+- **Hashing**: bcrypt via bcryptjs, configurable cost factor (BCRYPT_ROUNDS, default 12)
+- **Rate limiting**: 5 req/IP/15min, reuses 'login' type for fail-safe behavior
 
 ### Security Audit Events
 ```typescript
@@ -79,8 +89,15 @@ securityAuditService.logEvent({ eventType, route, ipHash, requestId, ... })
 
 ### Configuration
 - All settings via env vars (see `.env.example`)
-- `AppConfigService` provides typed accessors
+- `AppConfigService` provides typed accessors (includes `bcryptRounds`, DB config, rate limits)
 - `EnvironmentVariables` class validates with class-validator on startup
+
+### Database
+- TypeORM 0.3.x with PostgreSQL, async config from AppConfigService
+- Entities: Tenant, User, UserCredentials, UserRoleAssignment
+- Enums: TenantType (FAMILY/ORGANIZATION/INTERNAL), UserStatus (PENDING_VERIFICATION/ACTIVE/SUSPENDED), UserRole (5 roles)
+- Migrations via CLI: `npm run migration:run`, `npm run migration:revert`
+- Global email uniqueness via `emailNormalized` unique column
 
 ## Current Work: Story #59 - User Registration
 
@@ -89,15 +106,16 @@ Branch: `feature/59-user-registration-with-email-and-password-tenant-aware-secur
 ### Implementation Status
 - [x] Step 1: Merged foundational modules from feature/66 (Config, Logger, Redis, RateLimit, SecurityAudit, Metrics, Health)
 - [x] Step 2: PostgreSQL persistence (TypeORM entities + migrations for tenants, users, credentials, roles)
-- [ ] Step 3: POST /v1/auth/register endpoint with password policy, anti-enumeration, rate limiting
+- [x] Step 3: POST /v1/auth/register endpoint with password policy, anti-enumeration, rate limiting
 - [ ] Step 4: Security audit + observability for registration
 - [ ] Step 5: Frontend UIs (Next.js web + React Native mobile)
 
 ### Registration Design Decisions
 - Global email uniqueness (not per-tenant)
 - Always return 201 for anti-enumeration (even on duplicate email)
-- bcrypt with cost 12+ for password hashing
+- bcrypt with cost 12+ for password hashing (bcryptjs, pure JS)
 - New tenant per registration (FAMILY default, INTERNAL for admin roles)
 - No auto-login after registration (feature flag, default off)
-- Transactional: all-or-nothing record creation
+- Transactional: all-or-nothing record creation via QueryRunner
 - Password policy: 12-72 chars, 3/4 categories (lower, upper, digit, symbol), common password denylist
+- RegisterDto defaults role to FAMILY_OWNER; acceptTerms optional
