@@ -39,7 +39,6 @@ export function PasswordStrengthIndicator({
               height: '4px',
               borderRadius: '2px',
               backgroundColor: strength >= level ? STRENGTH_COLORS[strength] : '#e0e0e0',
-              transition: 'background-color 0.2s',
             }}
           />
         ))}

@@ -50,7 +50,6 @@ export function RoleSelector({ value, onChange, disabled }: RoleSelectorProps) {
               cursor: disabled ? 'not-allowed' : 'pointer',
               backgroundColor: value === role ? '#ebf4ff' : '#ffffff',
               opacity: disabled ? 0.6 : 1,
-              transition: 'border-color 0.15s, background-color 0.15s',
             }}
           >
             <input

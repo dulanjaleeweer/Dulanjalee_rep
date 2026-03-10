@@ -70,7 +70,8 @@ export function useRegister(): UseRegisterReturn {
     }
     const pwResult = validatePassword(data.password);
     if (!pwResult.valid) {
-      clientErrors.push('Password does not meet requirements');
+      const failedRules = pwResult.rules.filter((r) => !r.met).map((r) => r.label);
+      clientErrors.push(...failedRules);
     }
 
     if (clientErrors.length > 0) {

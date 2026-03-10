@@ -35,6 +35,7 @@ export function RegisterForm({ onLoginPress }: RegisterFormProps) {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<UserRole>(UserRole.FAMILY_OWNER);
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const isSubmitting = state === 'submitting';
@@ -63,7 +64,7 @@ export function RegisterForm({ onLoginPress }: RegisterFormProps) {
   }
 
   const handleSubmit = () => {
-    submit({ email, password, displayName, role });
+    submit({ email, password, displayName, role, acceptTerms });
   };
 
   return (
@@ -176,6 +177,23 @@ export function RegisterForm({ onLoginPress }: RegisterFormProps) {
 
         {/* Role Selector */}
         <RoleSelector value={role} onChange={setRole} disabled={isSubmitting} />
+
+        {/* Terms */}
+        <TouchableOpacity
+          onPress={() => setAcceptTerms(!acceptTerms)}
+          disabled={isSubmitting}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: acceptTerms, disabled: isSubmitting }}
+          accessibilityLabel="I agree to the Terms of Service and Privacy Policy"
+          style={styles.termsRow}
+        >
+          <View style={[styles.checkbox, acceptTerms && styles.checkboxChecked]}>
+            {acceptTerms && <Text style={styles.checkmark}>{'\u2713'}</Text>}
+          </View>
+          <Text style={styles.termsText}>
+            I agree to the Terms of Service and Privacy Policy
+          </Text>
+        </TouchableOpacity>
 
         {/* Submit */}
         <TouchableOpacity
@@ -346,7 +364,40 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   secondaryButtonText: {
-    color: '#4a5568',
+    color: '#2d3748',
     fontSize: 14,
+  },
+  termsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 24,
+    padding: 4,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+    marginTop: 2,
+  },
+  checkboxChecked: {
+    borderColor: '#2b6cb0',
+    backgroundColor: '#2b6cb0',
+  },
+  checkmark: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  termsText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#4a5568',
+    lineHeight: 20,
   },
 });

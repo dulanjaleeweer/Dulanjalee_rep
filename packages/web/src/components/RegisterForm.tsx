@@ -57,7 +57,7 @@ export function RegisterForm() {
             border: '1px solid #cbd5e0',
             borderRadius: '6px',
             backgroundColor: '#ffffff',
-            color: '#4a5568',
+            color: '#2d3748',
             cursor: 'pointer',
             fontSize: '14px',
           }}
@@ -286,6 +286,7 @@ export function RegisterForm() {
       <button
         type="submit"
         disabled={isSubmitting}
+        aria-busy={isSubmitting || undefined}
         style={{
           width: '100%',
           padding: '12px',
@@ -296,7 +297,6 @@ export function RegisterForm() {
           fontSize: '16px',
           fontWeight: 500,
           cursor: isSubmitting ? 'not-allowed' : 'pointer',
-          transition: 'background-color 0.15s',
         }}
       >
         {isSubmitting ? 'Creating account...' : 'Create account'}
