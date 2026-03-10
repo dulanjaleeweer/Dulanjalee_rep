@@ -77,10 +77,19 @@ src/
 
 ### Security Audit Events
 ```typescript
-securityAuditService.logEvent({ eventType, route, ipHash, requestId, ... })
+securityAuditService.logRegistrationAttempt({ outcome, emailHash, ipHash, requestId, ... })
+securityAuditService.logRateLimitBlocked({ route, rateLimitType, limit, ... })
 ```
-- All PII hashed (SHA-256) before logging
-- Event types: SECURITY_RATE_LIMIT_BLOCKED, SECURITY_AUTH_FAILED_THRESHOLD_REACHED, SECURITY_REDIS_UNAVAILABLE
+- All PII hashed (SHA-256, truncated to 16 chars) before logging
+- Event types: SECURITY_REGISTRATION_ATTEMPT, SECURITY_RATE_LIMIT_BLOCKED, SECURITY_AUTH_FAILED_THRESHOLD_REACHED, SECURITY_REDIS_UNAVAILABLE
+- Registration outcomes: `created`, `duplicate`, `validation_failed`, `error`
+
+### Metrics (Registration)
+- `registration_attempt_total` — every attempt (all outcomes)
+- `registration_success_total` — new account created (labelled by role)
+- `registration_duplicate_total` — existing email silently handled
+- `registration_validation_failed_total` — password policy rejection
+- `registration_error_total` — transaction/system failure
 
 ### PII Protection
 - Pino auto-redacts: passwords, tokens, emails, auth headers, cookies
@@ -107,7 +116,7 @@ Branch: `feature/59-user-registration-with-email-and-password-tenant-aware-secur
 - [x] Step 1: Merged foundational modules from feature/66 (Config, Logger, Redis, RateLimit, SecurityAudit, Metrics, Health)
 - [x] Step 2: PostgreSQL persistence (TypeORM entities + migrations for tenants, users, credentials, roles)
 - [x] Step 3: POST /v1/auth/register endpoint with password policy, anti-enumeration, rate limiting
-- [ ] Step 4: Security audit + observability for registration
+- [x] Step 4: Security audit + observability hooks for registration
 - [ ] Step 5: Frontend UIs (Next.js web + React Native mobile)
 
 ### Registration Design Decisions
